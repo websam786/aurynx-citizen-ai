@@ -1,4 +1,3 @@
-
 import io
 
 import faiss
@@ -26,6 +25,38 @@ client = OpenAI()
 embedding_model = SentenceTransformer(
     "all-MiniLM-L6-v2"
 )
+
+
+# ============================================================
+# SCHOLARSHIP SEMANTIC SEARCH
+# ============================================================
+
+SCHOLARSHIP_TEXTS = []
+
+for scheme in SCHOLARSHIPS:
+
+    text = (
+        scheme["name"] + " "
+        + " ".join(scheme["keywords"]) + " "
+        + scheme["description"] + " "
+        + scheme["eligibility"]
+    )
+
+    SCHOLARSHIP_TEXTS.append(text)
+
+
+SCHOLARSHIP_EMBEDDINGS = embedding_model.encode(
+    SCHOLARSHIP_TEXTS
+)
+
+SCHOLARSHIP_EMBEDDINGS = np.array(
+    SCHOLARSHIP_EMBEDDINGS
+).astype("float32")
+
+
+# ============================================================
+# FASTAPI
+# ============================================================
 
 app = FastAPI(
     title="Aurynx Citizen AI"
@@ -102,186 +133,331 @@ def create_chunks(
 
 
 # ============================================================
+# FIND BEST SCHOLARSHIP
+# ============================================================
+
+def find_best_scheme(question):
+
+    question_embedding = embedding_model.encode(
+        [question]
+    )
+
+    question_embedding = np.array(
+        question_embedding
+    ).astype("float32")
+
+
+    # --------------------------------------------------------
+    # NORMALIZE QUESTION
+    # --------------------------------------------------------
+
+    question_norm = (
+        question_embedding
+        / np.linalg.norm(
+            question_embedding,
+            axis=1,
+            keepdims=True
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # NORMALIZE SCHOLARSHIPS
+    # --------------------------------------------------------
+
+    scheme_norm = (
+        SCHOLARSHIP_EMBEDDINGS
+        / np.linalg.norm(
+            SCHOLARSHIP_EMBEDDINGS,
+            axis=1,
+            keepdims=True
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # COSINE SIMILARITY
+    # --------------------------------------------------------
+
+    similarities = np.dot(
+        question_norm,
+        scheme_norm.T
+    )[0]
+
+
+    # --------------------------------------------------------
+    # BEST MATCH
+    # --------------------------------------------------------
+
+    best_index = int(
+        np.argmax(similarities)
+    )
+
+    best_score = float(
+        similarities[best_index]
+    )
+
+
+    return (
+        SCHOLARSHIPS[best_index],
+        best_score
+    )
+
+
+# ============================================================
 # MAIN AURYNX SEARCH
 # ============================================================
 
 @app.post("/ask")
 def ask_question(data: CitizenQuestion):
 
-    global VECTOR_INDEX
-    global DOCUMENT_CHUNKS
-    global DOCUMENT_SOURCE
-    global DOCUMENT_YEAR
+    user_question = (
+        data.question
+        .lower()
+        .strip()
+    )
 
-    user_question = data.question.strip()
 
-    if not user_question:
+    # ========================================================
+    # INTENT DETECTION
+    # ========================================================
+
+    eligibility_words = [
+
+        "eligible",
+        "eligibility",
+        "qualify",
+        "qualification",
+        "who can apply",
+        "can i apply",
+        "can i get",
+        "am i allowed",
+        "do i qualify",
+        "can i receive",
+        "who is eligible",
+        "who can get"
+
+    ]
+
+
+    application_words = [
+
+        "how to apply",
+        "how can i apply",
+        "application",
+        "apply",
+        "registration",
+        "register",
+        "where can i apply",
+        "how do i register"
+
+    ]
+
+
+    document_words = [
+
+        "document",
+        "documents",
+        "certificate",
+        "certificates",
+        "proof",
+        "required papers",
+        "papers do i need",
+        "what should i submit",
+        "what do i need to submit"
+
+    ]
+
+
+    # ========================================================
+    # DETERMINE INTENT
+    # ========================================================
+
+    if any(
+        word in user_question
+        for word in eligibility_words
+    ):
+
+        intent = "eligibility"
+
+
+    elif any(
+        word in user_question
+        for word in application_words
+    ):
+
+        intent = "application"
+
+
+    elif any(
+        word in user_question
+        for word in document_words
+    ):
+
+        intent = "documents"
+
+
+    else:
+
+        intent = "general"
+
+
+    # ========================================================
+    # FIND BEST MATCHING SCHOLARSHIP
+    # ========================================================
+
+    scheme, similarity = find_best_scheme(
+        user_question
+    )
+
+
+    # ========================================================
+    # CHECK CONFIDENCE
+    # ========================================================
+
+    if similarity < 0.35:
 
         return {
-            "question": data.question,
-            "message": "Please enter a question."
+
+            "question":
+                data.question,
+
+            "answer": (
+                "I couldn't find reliable matching "
+                "government information yet. "
+                "Please try asking about a specific "
+                "government scheme, scholarship or "
+                "citizen service."
+            )
+
         }
 
 
     # ========================================================
-    # STEP 1
-    # IF A DOCUMENT HAS BEEN UPLOADED,
-    # SEARCH THE DOCUMENT FIRST
+    # BUILD INFORMATION FOR AI
     # ========================================================
 
-    if VECTOR_INDEX is not None and DOCUMENT_CHUNKS:
+    scheme_information = f"""
 
-        try:
+Scheme name:
+{scheme["name"]}
 
-            question_embedding = embedding_model.encode(
-                [user_question]
-            )
+Description:
+{scheme["description"]}
 
-            question_embedding = np.array(
-                question_embedding
-            ).astype("float32")
+Eligibility:
+{scheme["eligibility"]}
+
+Benefits:
+{scheme.get("benefits", "The available Aurynx information does not specify this.")}
+
+Application:
+{scheme["application"]}
+
+Documents:
+{scheme["documents"]}
+
+Status:
+{scheme.get("status", "The available Aurynx information does not specify this.")}
+
+eKYC:
+{scheme.get("ekyc", "The available Aurynx information does not specify this.")}
+
+Official source:
+{scheme["official"]}
+
+"""
 
 
-            distances, indexes = VECTOR_INDEX.search(
-                question_embedding,
-                3
-            )
+    # ========================================================
+    # ASK OPENAI
+    # ========================================================
 
+    response = client.chat.completions.create(
 
-            relevant_chunks = []
+        model="gpt-5-mini",
 
-            for index in indexes[0]:
+        messages=[
 
-                if index != -1:
+            {
 
-                    relevant_chunks.append(
-                        DOCUMENT_CHUNKS[index]
-                    )
+                "role": "system",
 
+               "content": (
 
-            if relevant_chunks:
+    "You are Aurynx Citizen AI. "
 
-                context = "\n\n".join(
-                    relevant_chunks
+    "IMPORTANT: You are NOT allowed to provide "
+    "any government fact that is not explicitly "
+    "written in the Government Information below. "
+
+    "Treat the Government Information as the complete "
+    "and only source of truth. "
+
+    "Do not use your general knowledge. "
+
+    "Do not infer missing requirements. "
+
+    "Do not provide typical documents. "
+
+    "Do not provide assumed documents. "
+
+    "Do not provide examples of documents unless "
+    "those examples appear in the Government Information. "
+
+    "Do not add age limits, income limits, marks, "
+    "deadlines, amounts, certificates, application "
+    "steps or eligibility conditions unless they are "
+    "explicitly present below. "
+
+    "You MAY rewrite the provided information in "
+    "simpler language and answer the user's question "
+    "naturally. "
+
+    "If the requested information is missing, say: "
+    "'The available Aurynx information does not "
+    "specify this.' "
+
+    "Never fill missing information from your own knowledge."
+
+)
+            },
+
+            {
+
+                "role": "user",
+
+                "content": (
+
+                    f"Government information:\n"
+                    f"{scheme_information}\n\n"
+
+                    f"User question:\n"
+                    f"{data.question}"
+
                 )
 
+            }
 
-                response = client.chat.completions.create(
+        ]
 
-                    model="gpt-5-mini",
-
-                    messages=[
-
-                        {
-                            "role": "system",
-
-                            "content": (
-                                "You are Aurynx Citizen AI. "
-
-                                "Answer the citizen's question "
-                                "using only the provided "
-                                "government document context. "
-
-                                "Do not invent information. "
-
-                                "Give a clear and simple answer. "
-
-                                "If the answer is not available "
-                                "in the document, clearly say "
-                                "that the information is not "
-                                "available in the uploaded document."
-                            )
-                        },
-
-                        {
-                            "role": "user",
-
-                            "content": (
-
-                                f"Source document: "
-                                f"{DOCUMENT_SOURCE}\n\n"
-
-                                f"Document context:\n"
-                                f"{context}\n\n"
-
-                                f"Citizen question:\n"
-                                f"{user_question}"
-                            )
-                        }
-                    ]
-                )
-
-
-                return {
-
-                    "question": data.question,
-
-                    "answer": (
-                        response
-                        .choices[0]
-                        .message
-                        .content
-                    ),
-
-                    "source_document":
-                        DOCUMENT_SOURCE,
-
-                    "document_year":
-                        DOCUMENT_YEAR,
-
-                    "notice": (
-                        f"This information comes from "
-                        f"a {DOCUMENT_YEAR} document. "
-                        "Please verify current eligibility, "
-                        "requirements and deadlines with "
-                        "the official government source."
-                    )
-                }
-
-        except Exception as e:
-
-            print(
-                "Document search error:",
-                str(e)
-            )
+    )
 
 
     # ========================================================
-    # STEP 2
-    # SEARCH THE GOVERNMENT KNOWLEDGE BASE
+    # GET AI ANSWER
     # ========================================================
 
-    user_question_lower = user_question.lower()
-
-
-    for scheme in SCHOLARSHIPS:
-
-        for keyword in scheme.get(
-            "keywords",
-            []
-        ):
-
-            if keyword.lower() in user_question_lower:
-
-                return {
-
-                    "question":
-                        data.question,
-
-                    "scheme":
-                        scheme["name"],
-
-                    "description":
-                        scheme["description"],
-
-                    "official_source":
-                        scheme["official"]
-                }
+    answer = (
+        response
+        .choices[0]
+        .message
+        .content
+    )
 
 
     # ========================================================
-    # STEP 3
-    # NOTHING FOUND
+    # RETURN AURYNX RESPONSE
     # ========================================================
 
     return {
@@ -289,12 +465,15 @@ def ask_question(data: CitizenQuestion):
         "question":
             data.question,
 
-        "message": (
-            "I couldn't find matching government "
-            "information yet. Please try asking about "
-            "a government scheme, scholarship, benefit "
-            "or uploaded document."
-        )
+        "scheme":
+            scheme["name"],
+
+        "answer":
+            answer,
+
+        "official_source":
+            scheme["official"]
+
     }
 
 
@@ -347,6 +526,7 @@ async def upload_document(
 
     # Currently your Pragati PDF is from 2020.
     # Later we can automatically detect the year.
+
     DOCUMENT_YEAR = "2020"
 
 
@@ -404,6 +584,7 @@ async def upload_document(
 
         "chunks":
             len(DOCUMENT_CHUNKS)
+
     }
 
 
@@ -434,6 +615,7 @@ def ask_document(
             "message":
                 "No document uploaded yet. "
                 "Please upload a document first."
+
         }
 
 
@@ -460,6 +642,7 @@ def ask_document(
         question_embedding,
 
         3
+
     )
 
 
@@ -489,6 +672,7 @@ def ask_document(
             "answer":
                 "I couldn't find relevant "
                 "information in this document."
+
         }
 
 
@@ -512,23 +696,56 @@ def ask_document(
         messages=[
 
             {
+
                 "role": "system",
 
-                "content": (
-                    "You are Aurynx Citizen AI. "
+               "content": (
 
-                    "Answer the user's question using "
-                    "only the provided document context. "
+    "You are Aurynx Citizen AI, a helpful government "
+    "information assistant for citizens in India. "
 
-                    "Do not invent information. "
+    "Your job is to understand what the user is actually "
+    "asking, even when the question is informal, short, "
+    "grammatically incorrect, or uses everyday language. "
 
-                    "If the answer is not present in "
-                    "the context, say that it is not "
-                    "available in the document."
-                )
+    "Use ONLY the Government Information provided below. "
+    "Do not use your general knowledge. "
+    "Do not invent, assume, or infer government rules. "
+
+    "You may combine different pieces of information from "
+    "the provided Government Information when answering. "
+
+    "You may rewrite the information in simple, natural "
+    "language so that ordinary citizens can understand it. "
+
+    "If the user asks whether a particular person qualifies, "
+    "do not claim that the person is definitely eligible "
+    "unless the provided information is sufficient to confirm it. "
+
+    "Instead, clearly explain what is known and what still "
+    "needs to be checked. "
+
+    "If specific information such as income limits, age limits, "
+    "documents, deadlines, amounts, exclusions, or application "
+    "steps is not provided, do not create it from your own "
+    "knowledge. "
+
+    "When information is missing, say naturally: "
+    "'The available Aurynx information does not specify this.' "
+
+    "Avoid unnecessary repetition. "
+
+    "Answer directly first, then provide useful details. "
+
+    "Use bullet points when they make the answer easier to read. "
+
+    "If an official source is provided, mention it at the end. "
+
+)
             },
 
             {
+
                 "role": "user",
 
                 "content": (
@@ -541,9 +758,13 @@ def ask_document(
 
                     f"Question: "
                     f"{data.question}"
+
                 )
+
             }
+
         ]
+
     )
 
 
@@ -576,9 +797,10 @@ def ask_document(
             "Please verify current eligibility, "
             "requirements and deadlines with "
             "the official government source."
+
         ),
 
         "sources":
             relevant_chunks
-    }
 
+    }

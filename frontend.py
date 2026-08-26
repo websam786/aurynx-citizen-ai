@@ -240,6 +240,7 @@ st.markdown(
 )
 
 
+
 # ============================================================
 # AI SEARCH
 # ============================================================
@@ -302,26 +303,8 @@ if st.button(
 
                 st.markdown("### 🤖 Aurynx")
 
-                if result.get("scheme"):
-
-                    st.success(
-                        result["scheme"]
-                    )
-
-                    if result.get("description"):
-
-                        st.write(
-                            result["description"]
-                        )
-
-                    if result.get("official_source"):
-
-                        st.markdown(
-                            f"**Official source:** "
-                            f"{result['official_source']}"
-                        )
-
-                elif result.get("answer"):
+                # NEW BACKEND RESPONSE
+                if result.get("answer"):
 
                     st.write(
                         result["answer"]
@@ -373,7 +356,6 @@ if st.button(
             st.error(
                 f"❌ Unexpected error: {str(e)}"
             )
-
 
 
 
