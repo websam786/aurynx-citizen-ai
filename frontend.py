@@ -1,7 +1,16 @@
-
 import streamlit as st
 import requests
+import speech_recognition as sr
+import whisper
 
+
+@st.cache_resource
+def load_whisper_model():
+
+    return whisper.load_model("small")
+
+
+whisper_model = load_whisper_model()
 
 # ============================================================
 # PAGE CONFIG
@@ -41,8 +50,6 @@ st.markdown(
             );
     }
 
-    /* HEADER */
-
     .brand {
         font-size: 34px;
         font-weight: 900;
@@ -58,8 +65,6 @@ st.markdown(
         color: #64748b;
         font-size: 14px;
     }
-
-    /* HERO */
 
     .hero-box {
         text-align: center;
@@ -102,8 +107,6 @@ st.markdown(
         color: #64748b;
     }
 
-    /* SEARCH */
-
     .search-title {
         text-align: center;
         font-size: 30px;
@@ -118,8 +121,6 @@ st.markdown(
         margin-bottom: 25px;
     }
 
-    /* SERVICE CARDS */
-
     .service-box {
         background: rgba(255,255,255,0.92);
         border-radius: 22px;
@@ -129,25 +130,6 @@ st.markdown(
         box-shadow: 0 8px 25px rgba(15,23,42,0.06);
     }
 
-    .service-icon {
-        font-size: 38px;
-    }
-
-    .service-name {
-        font-size: 20px;
-        font-weight: 800;
-        color: #172033;
-        margin-top: 10px;
-    }
-
-    .service-text {
-        color: #64748b;
-        line-height: 1.5;
-        margin-top: 8px;
-    }
-
-    /* ANSWER */
-
     .answer-box {
         background: rgba(255,255,255,0.96);
         border-radius: 24px;
@@ -156,8 +138,6 @@ st.markdown(
         box-shadow: 0 12px 35px rgba(15,23,42,0.08);
         margin: 25px 0;
     }
-
-    /* FOOTER */
 
     .footer {
         text-align: center;
@@ -240,7 +220,6 @@ st.markdown(
 )
 
 
-
 # ============================================================
 # AI SEARCH
 # ============================================================
@@ -263,10 +242,66 @@ st.markdown(
 
 question = st.text_input(
     "Ask Aurynx",
-    placeholder="🔍  e.g. Who can apply for the Pragati scholarship?",
+    placeholder="🔍  e.g. Who can apply for PM-YASASVI?",
     label_visibility="collapsed"
 )
+st.caption("🎤 Or ask Aurynx using your voice")
 
+audio_value = st.audio_input(
+    "Record your question"
+)
+
+if audio_value is not None:
+
+    try:
+
+        with st.spinner("🎧 Aurynx is understanding your voice..."):
+
+            audio_bytes = audio_value.getvalue()
+
+            with open("voice_question.wav", "wb") as f:
+                f.write(audio_bytes)
+
+            result = whisper_model.transcribe(
+                "voice_question.wav",
+                task="transcribe"
+            )
+
+            voice_text = result["text"].strip()
+            detected_language = result.get("language", "")
+
+        if voice_text:
+
+            if detected_language == "ml":
+                language_name = "Malayalam 🇮🇳"
+
+            elif detected_language == "en":
+                language_name = "English 🇮🇳"
+
+            else:
+                language_name = detected_language
+
+            st.success(
+                f"🎤 You said: {voice_text}"
+            )
+
+            st.caption(
+                f"Detected language: {language_name}"
+            )
+
+            question = voice_text
+
+        else:
+
+            st.warning(
+                "Sorry, Aurynx could not understand your voice."
+            )
+
+    except Exception as e:
+
+        st.error(
+            f"❌ Voice input error: {str(e)}"
+        )
 
 if st.button(
     "✨ Ask Aurynx",
@@ -303,7 +338,6 @@ if st.button(
 
                 st.markdown("### 🤖 Aurynx")
 
-                # NEW BACKEND RESPONSE
                 if result.get("answer"):
 
                     st.write(
@@ -320,6 +354,18 @@ if st.button(
 
                     st.write(
                         "I couldn't find an answer."
+                    )
+
+                if result.get("scheme"):
+
+                    st.caption(
+                        f"Scheme: {result['scheme']}"
+                    )
+
+                if result.get("official_source"):
+
+                    st.caption(
+                        f"Official source: {result['official_source']}"
                     )
 
                 st.markdown(
@@ -357,8 +403,6 @@ if st.button(
                 f"❌ Unexpected error: {str(e)}"
             )
 
-
-
 # ============================================================
 # SERVICES
 # ============================================================
@@ -369,49 +413,177 @@ st.caption(
     "Quick access to information that matters to you."
 )
 
-services = [
-    (
-        "🎓",
-        "Scholarships",
-        "Find education scholarships and eligibility information."
-    ),
-    (
-        "💰",
-        "Government Benefits",
-        "Discover financial assistance and welfare schemes."
-    ),
-    (
-        "📄",
-        "Certificates",
-        "Understand documents, certificates and application requirements."
-    ),
-    (
-        "💼",
-        "Employment",
-        "Explore government employment opportunities and schemes."
-    ),
-]
+
+services = {
+
+    "🎓 Scholarships": {
+        "description": (
+            "Find education scholarships, eligibility, "
+            "documents and application information."
+        ),
+        "questions": [
+            "Who can apply for PM-YASASVI?",
+            "What documents are required for scholarships?",
+            "How can I apply for a government scholarship?"
+        ]
+    },
+
+    "💰 Government Benefits": {
+        "description": (
+            "Discover financial assistance, welfare schemes "
+            "and citizen benefits."
+        ),
+        "questions": [
+            "What government benefits are available?",
+            "Who is eligible for government financial assistance?",
+            "How can I apply for a government benefit?"
+        ]
+    },
+
+    "📄 Certificates": {
+        "description": (
+            "Understand certificates, required documents "
+            "and application procedures."
+        ),
+        "questions": [
+            "How can I apply for an income certificate?",
+            "What documents are required for a certificate?",
+            "Where can I apply for a government certificate?"
+        ]
+    },
+
+    "💼 Employment": {
+        "description": (
+            "Explore government employment opportunities, "
+            "employment schemes and skill programs."
+        ),
+        "questions": [
+            "What government employment opportunities are available?",
+            "Are there government employment schemes for young people?",
+            "Where can I find government job information?"
+        ]
+    }
+
+}
+
 
 cols = st.columns(4)
 
-for col, service in zip(cols, services):
 
-    icon, title, description = service
+for col, (service_name, service_data) in zip(
+    cols,
+    services.items()
+):
 
     with col:
 
         st.markdown(
-            f"## {icon}"
-        )
-
-        st.markdown(
-            f"### {title}"
+            f"### {service_name}"
         )
 
         st.write(
-            description
+            service_data["description"]
         )
 
+        st.markdown("**Try asking:**")
+
+        for question_example in service_data["questions"]:
+
+            if st.button(
+                question_example,
+                key=f"{service_name}_{question_example}",
+                use_container_width=True
+            ):
+
+                try:
+
+                    with st.spinner(
+                        "Aurynx is thinking..."
+                    ):
+
+                        response = requests.post(
+                            "http://127.0.0.1:8000/ask",
+                            json={
+                                "question": question_example
+                            },
+                            timeout=60
+                        )
+
+
+                    if response.status_code == 200:
+
+                        result = response.json()
+
+                        st.markdown(
+                            '<div class="answer-box">',
+                            unsafe_allow_html=True
+                        )
+
+                        st.markdown("### 🤖 Aurynx")
+
+                        if result.get("answer"):
+
+                            st.write(
+                                result["answer"]
+                            )
+
+                        elif result.get("message"):
+
+                            st.write(
+                                result["message"]
+                            )
+
+                        else:
+
+                            st.write(
+                                "I couldn't find an answer."
+                            )
+
+                        if result.get("scheme"):
+
+                            st.caption(
+                                f"Scheme: {result['scheme']}"
+                            )
+
+                        if result.get("official_source"):
+
+                            st.caption(
+                                f"Official source: "
+                                f"{result['official_source']}"
+                            )
+
+                        st.markdown(
+                            '</div>',
+                            unsafe_allow_html=True
+                        )
+
+                    else:
+
+                        st.error(
+                            f"Aurynx server returned an error "
+                            f"({response.status_code})."
+                        )
+
+
+                except requests.exceptions.ConnectionError:
+
+                    st.error(
+                        "❌ Aurynx backend is not running."
+                    )
+
+
+                except requests.exceptions.Timeout:
+
+                    st.error(
+                        "⏳ Aurynx took too long to respond."
+                    )
+
+
+                except Exception as e:
+
+                    st.error(
+                        f"❌ Unexpected error: {str(e)}"
+                    )
 
 # ============================================================
 # DOCUMENT UPLOAD
@@ -444,6 +616,7 @@ if uploaded_file:
                 "application/pdf"
             )
         }
+
 
         try:
 
@@ -644,4 +817,3 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-

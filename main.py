@@ -315,7 +315,7 @@ def ask_question(data: CitizenQuestion):
     # CHECK CONFIDENCE
     # ========================================================
 
-    if similarity < 0.35:
+    if similarity < 0.20:
 
         return {
 
