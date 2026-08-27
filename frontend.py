@@ -2,6 +2,15 @@ import streamlit as st
 import requests
 import speech_recognition as sr
 import whisper
+import os
+
+
+
+BACKEND_URL = os.getenv(
+    "AURYNX_BACKEND_URL",
+    "http://127.0.0.1:8000"
+)
+
 
 
 @st.cache_resource
@@ -319,7 +328,7 @@ if st.button(
             with st.spinner("Aurynx is thinking..."):
 
                 response = requests.post(
-                    "http://127.0.0.1:8000/ask",
+                    f"{BACKEND_URL}/ask",
                     json={
                         "question": question
                     },
@@ -502,7 +511,7 @@ for col, (service_name, service_data) in zip(
                     ):
 
                         response = requests.post(
-                            "http://127.0.0.1:8000/ask",
+                            f"{BACKEND_URL}/ask",
                             json={
                                 "question": question_example
                             },
@@ -703,7 +712,7 @@ if st.button(
             ):
 
                 response = requests.post(
-                    "http://127.0.0.1:8000/ask-document",
+                    f"{BACKEND_URL}/ask-document",
                     json={
                         "question": document_question
                     },
