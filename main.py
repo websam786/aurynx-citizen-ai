@@ -1,3 +1,4 @@
+
 import io
 
 import faiss
@@ -22,13 +23,29 @@ load_dotenv()
 
 client = OpenAI()
 
-embedding_model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
-)
+
+# ============================================================
+# LAZY LOAD EMBEDDING MODEL
+# ============================================================
+
+embedding_model = None
+
+
+def get_embedding_model():
+
+    global embedding_model
+
+    if embedding_model is None:
+
+        embedding_model = SentenceTransformer(
+            "all-MiniLM-L6-v2"
+        )
+
+    return embedding_model
 
 
 # ============================================================
-# SCHOLARSHIP SEMANTIC SEARCH
+# SCHOLARSHIP TEXT
 # ============================================================
 
 SCHOLARSHIP_TEXTS = []
@@ -45,13 +62,30 @@ for scheme in SCHOLARSHIPS:
     SCHOLARSHIP_TEXTS.append(text)
 
 
-SCHOLARSHIP_EMBEDDINGS = embedding_model.encode(
-    SCHOLARSHIP_TEXTS
-)
+# ============================================================
+# LAZY LOAD SCHOLARSHIP EMBEDDINGS
+# ============================================================
 
-SCHOLARSHIP_EMBEDDINGS = np.array(
-    SCHOLARSHIP_EMBEDDINGS
-).astype("float32")
+SCHOLARSHIP_EMBEDDINGS = None
+
+
+def get_scholarship_embeddings():
+
+    global SCHOLARSHIP_EMBEDDINGS
+
+    if SCHOLARSHIP_EMBEDDINGS is None:
+
+        model = get_embedding_model()
+
+        embeddings = model.encode(
+            SCHOLARSHIP_TEXTS
+        )
+
+        SCHOLARSHIP_EMBEDDINGS = np.array(
+            embeddings
+        ).astype("float32")
+
+    return SCHOLARSHIP_EMBEDDINGS
 
 
 # ============================================================
@@ -138,7 +172,13 @@ def create_chunks(
 
 def find_best_scheme(question):
 
-    question_embedding = embedding_model.encode(
+    model = get_embedding_model()
+
+    scholarship_embeddings = (
+        get_scholarship_embeddings()
+    )
+
+    question_embedding = model.encode(
         [question]
     )
 
@@ -166,9 +206,9 @@ def find_best_scheme(question):
     # --------------------------------------------------------
 
     scheme_norm = (
-        SCHOLARSHIP_EMBEDDINGS
+        scholarship_embeddings
         / np.linalg.norm(
-            SCHOLARSHIP_EMBEDDINGS,
+            scholarship_embeddings,
             axis=1,
             keepdims=True
         )
@@ -383,44 +423,44 @@ Official source:
 
                 "role": "system",
 
-               "content": (
+                "content": (
 
-    "You are Aurynx Citizen AI. "
+                    "You are Aurynx Citizen AI. "
 
-    "IMPORTANT: You are NOT allowed to provide "
-    "any government fact that is not explicitly "
-    "written in the Government Information below. "
+                    "IMPORTANT: You are NOT allowed to provide "
+                    "any government fact that is not explicitly "
+                    "written in the Government Information below. "
 
-    "Treat the Government Information as the complete "
-    "and only source of truth. "
+                    "Treat the Government Information as the complete "
+                    "and only source of truth. "
 
-    "Do not use your general knowledge. "
+                    "Do not use your general knowledge. "
 
-    "Do not infer missing requirements. "
+                    "Do not infer missing requirements. "
 
-    "Do not provide typical documents. "
+                    "Do not provide typical documents. "
 
-    "Do not provide assumed documents. "
+                    "Do not provide assumed documents. "
 
-    "Do not provide examples of documents unless "
-    "those examples appear in the Government Information. "
+                    "Do not provide examples of documents unless "
+                    "those examples appear in the Government Information. "
 
-    "Do not add age limits, income limits, marks, "
-    "deadlines, amounts, certificates, application "
-    "steps or eligibility conditions unless they are "
-    "explicitly present below. "
+                    "Do not add age limits, income limits, marks, "
+                    "deadlines, amounts, certificates, application "
+                    "steps or eligibility conditions unless they are "
+                    "explicitly present below. "
 
-    "You MAY rewrite the provided information in "
-    "simpler language and answer the user's question "
-    "naturally. "
+                    "You MAY rewrite the provided information in "
+                    "simpler language and answer the user's question "
+                    "naturally. "
 
-    "If the requested information is missing, say: "
-    "'The available Aurynx information does not "
-    "specify this.' "
+                    "If the requested information is missing, say: "
+                    "'The available Aurynx information does not "
+                    "specify this.' "
 
-    "Never fill missing information from your own knowledge."
+                    "Never fill missing information from your own knowledge."
 
-)
+                )
             },
 
             {
@@ -524,9 +564,6 @@ async def upload_document(
 
     DOCUMENT_SOURCE = file.filename
 
-    # Currently your Pragati PDF is from 2020.
-    # Later we can automatically detect the year.
-
     DOCUMENT_YEAR = "2020"
 
 
@@ -546,7 +583,9 @@ async def upload_document(
     # CREATE EMBEDDINGS
     # --------------------------------------------------------
 
-    embeddings = embedding_model.encode(
+    model = get_embedding_model()
+
+    embeddings = model.encode(
         DOCUMENT_CHUNKS
     )
 
@@ -623,7 +662,9 @@ def ask_document(
     # EMBED QUESTION
     # --------------------------------------------------------
 
-    question_embedding = embedding_model.encode(
+    model = get_embedding_model()
+
+    question_embedding = model.encode(
         [data.question]
     )
 
@@ -699,49 +740,49 @@ def ask_document(
 
                 "role": "system",
 
-               "content": (
+                "content": (
 
-    "You are Aurynx Citizen AI, a helpful government "
-    "information assistant for citizens in India. "
+                    "You are Aurynx Citizen AI, a helpful government "
+                    "information assistant for citizens in India. "
 
-    "Your job is to understand what the user is actually "
-    "asking, even when the question is informal, short, "
-    "grammatically incorrect, or uses everyday language. "
+                    "Your job is to understand what the user is actually "
+                    "asking, even when the question is informal, short, "
+                    "grammatically incorrect, or uses everyday language. "
 
-    "Use ONLY the Government Information provided below. "
-    "Do not use your general knowledge. "
-    "Do not invent, assume, or infer government rules. "
+                    "Use ONLY the Government Information provided below. "
+                    "Do not use your general knowledge. "
+                    "Do not invent, assume, or infer government rules. "
 
-    "You may combine different pieces of information from "
-    "the provided Government Information when answering. "
+                    "You may combine different pieces of information from "
+                    "the provided Government Information when answering. "
 
-    "You may rewrite the information in simple, natural "
-    "language so that ordinary citizens can understand it. "
+                    "You may rewrite the information in simple, natural "
+                    "language so that ordinary citizens can understand it. "
 
-    "If the user asks whether a particular person qualifies, "
-    "do not claim that the person is definitely eligible "
-    "unless the provided information is sufficient to confirm it. "
+                    "If the user asks whether a particular person qualifies, "
+                    "do not claim that the person is definitely eligible "
+                    "unless the provided information is sufficient to confirm it. "
 
-    "Instead, clearly explain what is known and what still "
-    "needs to be checked. "
+                    "Instead, clearly explain what is known and what still "
+                    "needs to be checked. "
 
-    "If specific information such as income limits, age limits, "
-    "documents, deadlines, amounts, exclusions, or application "
-    "steps is not provided, do not create it from your own "
-    "knowledge. "
+                    "If specific information such as income limits, age limits, "
+                    "documents, deadlines, amounts, exclusions, or application "
+                    "steps is not provided, do not create it from your own "
+                    "knowledge. "
 
-    "When information is missing, say naturally: "
-    "'The available Aurynx information does not specify this.' "
+                    "When information is missing, say naturally: "
+                    "'The available Aurynx information does not specify this.' "
 
-    "Avoid unnecessary repetition. "
+                    "Avoid unnecessary repetition. "
 
-    "Answer directly first, then provide useful details. "
+                    "Answer directly first, then provide useful details. "
 
-    "Use bullet points when they make the answer easier to read. "
+                    "Use bullet points when they make the answer easier to read. "
 
-    "If an official source is provided, mention it at the end. "
+                    "If an official source is provided, mention it at the end. "
 
-)
+                )
             },
 
             {
@@ -804,3 +845,4 @@ def ask_document(
             relevant_chunks
 
     }
+
