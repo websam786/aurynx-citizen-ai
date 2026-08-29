@@ -403,8 +403,22 @@ Status:
 eKYC:
 {scheme.get("ekyc", "The available Aurynx information does not specify this.")}
 
+Last verified:
+{scheme.get("last_verified", "Not specified")}
+
+Verification frequency:
+{scheme.get("verification_frequency", "Not specified")}
+
+Last verified:
+{scheme.get("last_verified", "Not specified")}
+
+Verification frequency:
+{scheme.get("verification_frequency", "Not specified")}
+
+
 Official source:
 {scheme["official"]}
+
 
 """
 
@@ -512,7 +526,18 @@ Official source:
             answer,
 
         "official_source":
-            scheme["official"]
+            scheme["official"],
+            "last_verified":
+        scheme.get(
+            "last_verified",
+            "Not specified"
+        ),
+
+    "verification_frequency":
+        scheme.get(
+            "verification_frequency",
+            "Not specified"
+        )
 
     }
 

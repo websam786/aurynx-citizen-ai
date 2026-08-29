@@ -45,7 +45,10 @@ SCHOLARSHIPS = [
             "supporting documents."
         ),
 
-        "official": "https://scholarships.gov.in/"
+        "official": "https://scholarships.gov.in/",
+
+        "last_verified": "2026-08-29",
+        "verification_frequency": "monthly",  
     },
 
 
@@ -95,7 +98,9 @@ SCHOLARSHIPS = [
             "OBC, EBC or DNT category certificate."
         ),
 
-        "official": "https://scholarships.gov.in/"
+        "official": "https://scholarships.gov.in/",
+        "last_verified": "2026-08-29",
+        "verification_frequency": "monthly",
     },
 
 
@@ -146,7 +151,9 @@ SCHOLARSHIPS = [
         "requirements before applying."
     ),
 
-    "official": "https://pmkisan.gov.in/"
+    "official": "https://pmkisan.gov.in/",
+     "last_verified": "2026-08-29",
+     "verification_frequency": "monthly",
 },
 
     # ============================================================
@@ -192,7 +199,9 @@ SCHOLARSHIPS = [
             "official PM-JAY system."
         ),
 
-        "official": "https://pmjay.gov.in/"
+        "official": "https://pmjay.gov.in/",
+        "last_verified": "2026-08-29",
+        "verification_frequency": "monthly",
     }
 
 ]

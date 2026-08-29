@@ -376,6 +376,17 @@ if st.button(
                     st.caption(
                         f"Official source: {result['official_source']}"
                     )
+                if result.get("last_verified"):
+
+                    st.caption(
+                        f"📅 Last verified: {result['last_verified']}"
+                    )
+
+                if result.get("verification_frequency"):
+
+                   st.caption(
+                       f"🔄 Verification frequency: {result['verification_frequency']}"
+    )
 
                 st.markdown(
                     '</div>',
@@ -560,6 +571,17 @@ for col, (service_name, service_data) in zip(
                                 f"Official source: "
                                 f"{result['official_source']}"
                             )
+                        if result.get("last_verified"):
+
+                            st.caption(
+                                f"📅 Last verified: {result['last_verified']}"
+                            )
+
+                        if result.get("verification_frequency"):
+
+                           st.caption(
+                                f"🔄 Verification frequency: {result['verification_frequency']}"
+                            )    
 
                         st.markdown(
                             '</div>',
