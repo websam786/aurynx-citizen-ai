@@ -656,7 +656,7 @@ if uploaded_file:
             ):
 
                 response = requests.post(
-                    "http://127.0.0.1:8000/upload-document",
+                    f"{BACKEND_URL}/upload-document",
                     files=files,
                     timeout=120
                 )
